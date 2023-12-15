@@ -28,3 +28,5 @@
     - Putting the coin into a bank. If I do not have any bank, I wander randomly until I find one. Once saved at least 70% of the current money, go back to CoinCollecting, or Connecting if found enough things. 
 - Enjoying:
     - Once goal reached the robot simply celebrate. 
+- Trading: 
+    - Once done, if it has more than 12 coins, he searches for a place to store them, so goes into saving, else again CoinCollecting

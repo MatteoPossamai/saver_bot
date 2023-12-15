@@ -1,5 +1,7 @@
 ## Tools
 
+https://advancedprogramming.disi.unitn.it/
+
 - oxag_audio_tool 
     - Repository: oxagaudiotool
     - Group: Oxidizing Agents
@@ -20,8 +22,8 @@
     - Group: Do not panic!()
     - What does: save and retrieve discoveded tiles
 
-- Destroy Zone (V) 
-    - Repository: 
+- Destroy Zone
+    - Repository: arrusticini_destroy_zone
     - Group: aRustici
     - What does: destrory in the nearby everything that is in the structure
 
