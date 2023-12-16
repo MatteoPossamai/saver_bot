@@ -1,11 +1,14 @@
-mod utils;
+pub mod utils;
 
 // Tools
 use charting_tools::ChartingTools; 
 use charting_tools::charted_coordinate::ChartedCoordinate;
-use recycle_by_ifrustrati::tool::recycle;
 use charting_tools::charted_map::ChartedMap;
+use oxagaudiotool::OxAgAudioTool;
+use oxagaudiotool::sound_config::OxAgSoundConfig;
+use recycle_by_ifrustrati::tool::recycle;
 use arrusticini_destroy_zone::DestroyZone;
+use asfalt_inator::{Asphaltinator, Shape};
 
 // Public library
 use robotics_lib::runner::{Robot, Runnable};
@@ -15,9 +18,11 @@ use robotics_lib::event::events::Event;
 use robotics_lib::runner::backpack::BackPack;
 use robotics_lib::energy::Energy;
 use robotics_lib::interface::{where_am_i, go, Direction, put};
-use robotics_lib::world::tile::Content;
+use robotics_lib::world::environmental_conditions::WeatherType;
+use robotics_lib::world::tile::{Content, TileType};
 
 // Standard library
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Range;
 
@@ -63,7 +68,9 @@ pub struct SaverBot{
     pub filled_banks: ChartedMap<Content>,
     pub unconnected_banks: ChartedMap<Content>,
     pub free_banks: ChartedMap<Content>,
-    pub saved: usize
+    pub saved: usize,
+    pub looking_for: Vec<Content>,
+    pub audio: OxAgAudioTool
 }
 
 /// Initialized a new SaverBot, and you can ask for a goal
@@ -90,7 +97,9 @@ macro_rules! new_saver_bot {
             filled_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(), 
             unconnected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             free_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
-            saved: 0
+            saved: 0,
+            looking_for: COIN_LOOKING_FOR.to_vec(),
+            audio: SaverBot::audio_init()
         }
     };
     ($x:expr) => {
@@ -101,7 +110,9 @@ macro_rules! new_saver_bot {
             filled_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(), 
             unconnected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             free_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
-            saved: 0
+            saved: 0,
+            looking_for: COIN_LOOKING_FOR.to_vec(),
+            audio: SaverBot::audio_init()
         }
     };
 }
@@ -124,11 +135,11 @@ macro_rules! new_saver_bot {
 /// }
 impl Runnable for SaverBot {
     fn process_tick(&mut self, world: &mut World) {
-        // Here call all the utility functions, as a middleware
-        // - look_for_banks
+        self.look_for_banks(world);
+        self.destroy_area(world);
 
         // If enery to low, wait for recharge
-        if !self.get_energy().has_enough_energy(15)  {
+        if !self.get_energy().has_enough_energy(150)  {
             return;
         }  
 
@@ -165,6 +176,7 @@ impl Runnable for SaverBot {
     }
 
     fn handle_event(&mut self, event: Event) {
+        let _ = self.audio.play_audio_based_on_event(&event);
         println!("{:?}", event);
         println!();
     }
@@ -212,7 +224,9 @@ impl SaverBot {
             filled_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(), 
             unconnected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             free_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
-            saved: 0
+            saved: 0,
+            looking_for: COIN_LOOKING_FOR.to_vec(),
+            audio: SaverBot::audio_init()
         }        
     }
     fn set_state(&mut self, state: State) {
@@ -225,9 +239,6 @@ impl SaverBot {
         self.saved.clone()
     }
     fn wander_in_seach_of(&mut self, world: &mut World, contents: Vec<Content>) {
-        // Save banks
-        self.look_for_banks(world);
-
         // Get surrounding interesting content
         for content in contents {
             match DestroyZone.execute(world, self, content) {
@@ -314,12 +325,7 @@ impl SaverBot {
     }
     fn search_for_bank(&mut self, world: &mut World) {
         println!("Searching for bank");
-        let found = self.look_for_banks(world);
-        if found {
-            self.set_state(State::Saving);
-        } else {
-            self.wander_in_seach_of(world, BANK_LOOKING_FOR.to_vec());
-        }
+        self.wander_in_seach_of(world, BANK_LOOKING_FOR.to_vec());
     }
     fn enjoy(&mut self) {
         println!("Enjoying");
@@ -379,19 +385,84 @@ impl SaverBot {
         }
         closest
     }
-    fn reach_position(&mut self, world: &mut World, x: usize, y: usize) {
-        while self.get_coordinate().get_row() < x {
+    fn reach_position(&mut self, world: &mut World, x: usize, y: usize) -> bool {
+        // Dummy function to move the robot to a certain position
+        // Need to use a best path algorithm or something similar
+        while self.get_coordinate().get_row() < x && self.get_energy().has_enough_energy(10) {
             let _ = go(self, world, Direction::Down);
         }
-        while self.get_coordinate().get_row() > x {
+        while self.get_coordinate().get_row() > x && self.get_energy().has_enough_energy(10) {
             let _ = go(self, world, Direction::Up);
         }
-        while self.get_coordinate().get_col() < y {
+        while self.get_coordinate().get_col() < y && self.get_energy().has_enough_energy(10){
             let _ = go(self, world,  Direction::Right);
         }
-        while self.get_coordinate().get_col() > y {
+        while self.get_coordinate().get_col() > y && self.get_energy().has_enough_energy(10){
             let _ = go(self, world, Direction::Left);
         }
+
+        self.get_coordinate().get_row() == x && self.get_coordinate().get_col() == y
+    }
+    fn connect_banks(&mut self, world: &mut World, x1: usize, y1: usize, x2: usize, y2: usize) {
+        if self.reach_position(world, x1, y1) && self.get_energy().has_enough_energy(700) {
+            let mut asphalitinator = Asphaltinator::new();
+            let _ = DestroyZone.execute(world, self, Content::Rock(0));
+            let delta = x2 as isize - x1 as isize;
+            let to_build = Shape::LongLong(delta.abs()as usize, if delta > 0 {Direction::Down} else {Direction::Up});
+            let project = asphalitinator.design_project(to_build);
+            match project {
+                Ok(project) => {
+                    let _ = asphalitinator.asfalting(self, world, project);
+                },
+                Err(error) => println!("While building there has been an issue {:?}", error)
+            }
+        }
+        
+    }
+    fn destroy_area(&mut self, world: &mut World) {
+        let needs = self.looking_for.clone();
+        for content in needs.iter() {
+            let _ = DestroyZone.execute(world, self, content.clone());
+        }
+    }
+    pub fn audio_init() -> OxAgAudioTool {
+        // Configure events
+        let mut events = HashMap::new();
+        events.insert(Event::Ready, OxAgSoundConfig::new("assets/default/event/event_ready.ogg"));
+        for i in 0..15 {
+            events.insert(Event::AddedToBackpack(Content::Coin(0), i), OxAgSoundConfig::new("assets/default/event/event_add_to_backpack.ogg"));
+            events.insert(Event::AddedToBackpack(Content::Rock(0), i), OxAgSoundConfig::new("assets/default/event/event_add_to_backpack.ogg"));
+            events.insert(Event::AddedToBackpack(Content::Garbage(0), i), OxAgSoundConfig::new("assets/default/event/event_add_to_backpack.ogg"));
+            events.insert(Event::AddedToBackpack(Content::Tree(0), i), OxAgSoundConfig::new("assets/default/event/event_add_to_backpack.ogg"));
+        }
+        events.insert(Event::EnergyRecharged(10), OxAgSoundConfig::new("assets/default/event/event_energy_recharged.ogg"));
+        events.insert(Event::Terminated, OxAgSoundConfig::new("assets/default/event/event_terminated.ogg"));
+
+        // Configure tiles
+        let mut tiles = HashMap::new();
+        tiles.insert(TileType::DeepWater, OxAgSoundConfig::new("assets/default/tile/tile_water.ogg"));
+        tiles.insert(TileType::ShallowWater, OxAgSoundConfig::new("assets/default/tile/tile_water.ogg"));
+        tiles.insert(TileType::Sand, OxAgSoundConfig::new("assets/default/tile/tile_sand.ogg"));
+        tiles.insert(TileType::Grass, OxAgSoundConfig::new("assets/default/tile/tile_grass.ogg"));
+        tiles.insert(TileType::Hill, OxAgSoundConfig::new("assets/default/tile/tile_grass.ogg"));
+        tiles.insert(TileType::Mountain, OxAgSoundConfig::new("assets/default/tile/tile_mountain.ogg"));
+        tiles.insert(TileType::Snow, OxAgSoundConfig::new("assets/default/tile/tile_snow.ogg"));
+        tiles.insert(TileType::Lava, OxAgSoundConfig::new("assets/default/tile/tile_lava.ogg"));
+        tiles.insert(TileType::Teleport(false), OxAgSoundConfig::new("assets/default/tile/tile_teleport.ogg"));
+        tiles.insert(TileType::Street, OxAgSoundConfig::new("assets/default/tile/tile_street.ogg"));
+
+        // Configure weather
+        let mut weather = HashMap::new();
+        weather.insert(WeatherType::Rainy, OxAgSoundConfig::new_looped_with_volume("assets/default/weather/weather_rainy.ogg", 0.4));
+        weather.insert(WeatherType::Sunny, OxAgSoundConfig::new_looped("assets/default/weather/weather_sunny.ogg"));
+
+        // Initialize audio
+        let audio = OxAgAudioTool::new(events, tiles, weather);
+        match audio {
+            Ok(audio) => audio,
+            Err(error) => panic!("Error while initializing audio: {:?}", error)
+        }
+        
     }
 }
 
