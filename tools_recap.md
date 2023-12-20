@@ -7,7 +7,7 @@ https://advancedprogramming.disi.unitn.it/
     - Group: Oxidizing Agents
     - What does: custom soundtrack for the world (tiles, weather, ...)
 
-- Basic Search Tool (X) 
+- Basic Search Tool (V) 
     - Repository: 
     - Group: unwrap().unwrap().unwrap()
     - What does: search for content inside an area
@@ -40,5 +40,5 @@ https://advancedprogramming.disi.unitn.it/
 ## World Generator
 
 - Drawable World Generator (V)
-    - Repository: 
+    - Repository: worldgen_unwrap
     - Group: unwrap().unwrap().unwrap()
