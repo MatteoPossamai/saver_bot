@@ -6,6 +6,7 @@ authors = ["Matteo Possamai"]
 publish = ["kellnr"]
 
 [dependencies]
+rand = "0.8.4"
 robotics_lib = { version = "0.1.21", registry = "kellnr"  }
 oxagaudiotool = { version = "0.2.0", registry = "kellnr"  }
 recycle_by_ifrustrati = { version = "0.1.0", registry = "kellnr"  }

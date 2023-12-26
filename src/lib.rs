@@ -18,7 +18,7 @@ use robotics_lib::world::coordinates::Coordinate;
 use robotics_lib::event::events::Event;
 use robotics_lib::runner::backpack::BackPack;
 use robotics_lib::energy::Energy;
-use robotics_lib::interface::{where_am_i, go, Direction, put};
+use robotics_lib::interface::{where_am_i, go, Direction, put, destroy};
 use robotics_lib::world::environmental_conditions::WeatherType;
 use robotics_lib::world::tile::{Content, TileType};
 use utils::clone_direction;
@@ -28,6 +28,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Range;
 use std::collections::BinaryHeap;
+use rand::Rng;
 
 use crate::utils::{COIN_LOOKING_FOR, ROCK_LOOKING_FOR, BANK_LOOKING_FOR, DIRECTIONS};
 
@@ -73,6 +74,7 @@ pub struct SaverBot{
     pub filled_banks: ChartedMap<Content>,
     pub unconnected_banks: ChartedMap<Content>,
     pub free_banks: ChartedMap<Content>,
+    // pub connected_banks: ChartedMap<Content>,
 
     // Coins taken so far
     pub saved: usize,
@@ -107,6 +109,7 @@ macro_rules! new_saver_bot {
             goal: None,
             filled_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(), 
             unconnected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
+            // connected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             free_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             saved: 0,
             looking_for: COIN_LOOKING_FOR.to_vec(),
@@ -122,6 +125,7 @@ macro_rules! new_saver_bot {
             goal: Some($x),
             filled_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(), 
             unconnected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
+            // connected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             free_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             saved: 0,
             looking_for: COIN_LOOKING_FOR.to_vec(),
@@ -172,7 +176,11 @@ impl Runnable for SaverBot {
         // Check if the goal has been reached
         if let Some(goal) = self.goal {
             if self.get_coin_saved() >= goal {
-                self.set_state(State::RockCollecting);
+                // remove all coins from the backpack
+                let _ = put(self, world, Content::Coin(0), self.get_backpack().get_contents().get(&Content::Coin(0)).unwrap().clone(), Direction::Up);
+                // remove all garbage from the backpack
+                let _ = put(self, world, Content::Garbage(0), self.get_backpack().get_contents().get(&Content::Garbage(0)).unwrap().clone(), Direction::Up);
+                self.set_state(State::Connecting);
             }
         }
 
@@ -181,6 +189,7 @@ impl Runnable for SaverBot {
                 self.coin_collect(world);
             }, 
             State::RockCollecting => {
+                println!("Rock collecting noooooow");
                 self.rock_collect(world);
             },
             State::Connecting => {
@@ -204,7 +213,6 @@ impl Runnable for SaverBot {
     fn handle_event(&mut self, event: Event) {
         // let _ = self.audio.play_audio_based_on_event(&event); TODO: uncomment this for audio
         println!("{:?}", event);
-        // println!();
     }
     fn get_energy(&self) -> &Energy {
         &self.robot.energy
@@ -249,6 +257,7 @@ impl SaverBot {
             goal,
             filled_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(), 
             unconnected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
+            // connected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             free_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             saved: 0,
             looking_for: COIN_LOOKING_FOR.to_vec(),
@@ -266,28 +275,6 @@ impl SaverBot {
     fn get_coin_saved(&self) -> usize {
         self.saved.clone()
     }
-       
-    fn save(&mut self, world: &mut World) {
-        println!("Saving");
-        let direction = self.go_to_closest_open_bank(world);
-        if self.get_backpack().get_contents().get(&Content::Coin(0)).unwrap() <= &3 {
-            self.set_state(State::CoinCollecting);
-            return ;
-        } 
-        if let Some(dir) = direction {
-            let putting = put(self, world, Content::Coin(0), 20, dir);
-            match putting {
-                Ok(quantity) => {
-                    self.saved += quantity;
-                    println!("Saved {quantity} coins");
-                },
-                Err(error) => println!("While saving there has been an issue {:?}", error)
-            }
-        } else {
-            self.set_state(State::BankSearching);
-        }
-    }
-
 
     fn reach_position(&mut self, world: &mut World, x: usize, y: usize) -> bool {
         // Dummy function to move the robot to a certain position
@@ -309,12 +296,22 @@ impl SaverBot {
     }
     fn connect(&mut self, _world: &mut World) {
         println!("Connecting");
+        
+        // if let Some(connected) = self.connected_banks.get(&Content::Bank(Range { start: 0, end: 0})) {
+        //     if connected.len() > 0 {
+        //         // remove the first from the free banks and put it in the connected banks
+        //         let (cx, cy) = self.closest_bank();
+        //         let _ = self.free_banks.remove(&Content::Bank(Range { start: 0, end: 0 }), ChartedCoordinate(cx, cy));
+        //         self.connected_banks.save(&Content::Bank(Range { start: 0, end: 0 }), &ChartedCoordinate(cx, cy));
+        //     }
+        // }
+        self.set_state(State::RockCollecting);
+
     }
     fn _connect_banks(&mut self, world: &mut World, x1: usize, y1: usize, x2: usize, _y2: usize) {
         // TODO, figure out something about the unfinished projects
         if self.reach_position(world, x1, y1) && self.get_energy().has_enough_energy(700) {
             let mut asphalitinator = Asphaltinator::new();
-            let _ = DestroyZone.execute(world, self, Content::Rock(0));
             let delta = x2 as isize - x1 as isize;
             let to_build = Shape::LongLong(delta.abs()as usize, if delta > 0 {Direction::Down} else {Direction::Up});
             let project = asphalitinator.design_project(to_build);
@@ -406,18 +403,74 @@ impl SaverBot {
         }
     }
     fn destroy_area(&mut self, world: &mut World) {
-        let needs = self.looking_for.clone();
-        for content in needs.iter() {
-            let _ = DestroyZone.execute(world, self, content.clone());
+        let mut banks_points = vec![];
+        if let Some(banks) = self.free_banks.get(&Content::Bank(Range { start: 0, end:0 })) {
+            for bank in banks.iter() {
+                banks_points.push((bank.0.0, bank.0.1));
+            }
         }
+        if let Some(banks) = self.unconnected_banks.get(&Content::Bank(Range { start: 0, end:0 })) {
+            for bank in banks.iter() {
+                banks_points.push((bank.0.0, bank.0.1));
+            }
+        }
+        if let Some(banks) = self.filled_banks.get(&Content::Bank(Range { start: 0, end:0 })) {
+            for bank in banks.iter() {
+                banks_points.push((bank.0.0, bank.0.1));
+            }
+        }
+        let (x, y) = (self.get_coordinate().get_row() as i32, self.get_coordinate().get_col() as i32);
+        let directs = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 0), (0, 1), (1, -1), (1, 0), (1, -1)];
+        let mut good = true;
+        for (ox, oy) in directs.iter() {
+            let (big_x, big_y) = (x + ox, y + oy);
+            if banks_points.contains(&(big_x as usize, big_y as usize)) {
+                good = false;
+            }
+        }
+        if good {
+            let needs = self.looking_for.clone();
+            for content in needs.iter() {
+                let _ = DestroyZone.execute(world, self, content.clone());
+            }
+        } else {
+            let (tiles, _) = where_am_i(self, world);
+            for i in 0..3 {
+                for j in 0..3 {
+                    let (cx, cy) = (x + i - 1, y + j - 1);
+                    let tile = &tiles[i as usize][j as usize];
+                    match tile {
+                        None => {},
+                        Some(tile) => {
+                            let content = tile.content.clone();
+                            if self.looking_for.contains(&content) && content != Content::Bank(Range { start: 0, end: 0 }) {
+                                let direction = if cx > x {Direction::Down} else if cx < x {Direction::Up} else if cy > y {Direction::Right} else {Direction::Left};
+                                let thing = destroy(self, world, direction);
+                                match thing {
+                                    Ok(number) => {println!("Destroyed {} {:?}", number, content);},
+                                    Err(error) => println!("While destroying there has been an issue {:?}", error)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+        }
+        
     }
     fn rock_collect(&mut self, world: &mut World) {
         println!("Rock collecting");
+        // remove all coins from the backpack
+        let _ = put(self, world, Content::Coin(0), self.get_backpack().get_contents().get(&Content::Coin(0)).unwrap().clone(), Direction::Up);
+        // remove all garbage from the backpack
+        let _ = put(self, world, Content::Garbage(0), self.get_backpack().get_contents().get(&Content::Garbage(0)).unwrap().clone(), Direction::Up);
         self.wander_in_seach_of(world, ROCK_LOOKING_FOR.to_vec());
         let current_number_rock = self.get_backpack().get_contents().get(&Content::Rock(0)).unwrap();
-
+        println!("CURRENT number of rock: {:?}", current_number_rock);
         // Change state if enough rock
         if current_number_rock >= &15 {
+            println!("Changing state to connecting");
             self.set_state(State::Connecting)
         }
     }
@@ -425,18 +478,9 @@ impl SaverBot {
         println!("Enjoying");
         // TODO: Add maybe some useless celebrations and stuff, not meaningful now
     }
-    fn sweep(&mut self, world: &mut World, contents: Vec<Content>) {
-        // Sweep around the robot
-        for content in contents.iter() {
-            match DestroyZone.execute(world, self, content.clone()) {
-                Ok((d, t)) => print!("destroyed {} on a total of {} objects", d, t),
-                Err(e) => println!("Error: {:?}", e)
-            }
-        }
-    }
     fn search_for_bank(&mut self, world: &mut World) {
         println!("Searching for bank");
-        if self.free_banks.iter().len() > 0 {
+        if self.free_banks.get(&Content::Bank(Range { start: 0, end: 0 })).iter().len() > 0 {
             self.set_state(State::Saving);
         } else {
             self.look_for_unknown_banks(world);
@@ -500,15 +544,14 @@ impl SaverBot {
         }
     }
     fn wander_in_seach_of(&mut self, world: &mut World, contents: Vec<Content>) {
-        // Sweep around the robot
-        self.sweep(world, contents.clone());
+        self.destroy_area(world);
 
         // Look if something interesting nearby with the tool 
         let mut st = SearchTool::new();
         
         self.timer += 1;
         let res = st.look_for_this_content(self, world, contents.clone(),
-                3 , clone_direction(&DIRECTIONS[self.timer % 4]));
+                2 , clone_direction(&DIRECTIONS[rand::thread_rng().gen_range(0..4)]));
         match res {
             Ok(_) => {
                 // Save the banks into the map
@@ -538,11 +581,14 @@ impl SaverBot {
                     while self.get_energy().has_enough_energy(400) && heap.len() > 0 {
                         let (_, (x, y)) = heap.pop().unwrap();
                         let _ = self.reach_position(world, x, y);
-                        self.sweep(world, contents.clone());
+                        self.destroy_area(world);
                     }
                 }
             },
             Err(e) => println!("Error: {:?}", e)
+        }
+        for _ in 0..4 {
+            let _ = go(self, world, [Direction::Up, Direction::Down, Direction::Left, Direction::Right][rand::thread_rng().gen_range(0..4)].clone());
         }
         
     }
@@ -565,4 +611,62 @@ impl SaverBot {
         }
         closest
     }
+    fn save(&mut self, world: &mut World) {
+        println!("Saving");
+        let (cx, cy) = self.closest_bank();
+        let (x, y) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
+         
+        let mut direction = self.go_to_closest_open_bank(world);
+        let res = where_am_i(self, world);
+
+        for i in 0..3 {
+            for j in 0..3 {
+                println!("{:?}", res.0[i][j]);
+            }
+        }
+
+        if self.get_backpack().get_contents().get(&Content::Coin(0)).unwrap() <= &3 {
+            self.set_state(State::CoinCollecting);
+            return ;
+        } 
+        if (cx == x) && (cy == y) {
+            let res = go(self, world, Direction::Left);
+            match res {
+                Ok(_) => {direction = Some(Direction::Left);},
+                Err(_) => {
+                    let res = go(self, world, Direction::Right); 
+                    
+                    match res {Ok(_) => {direction = Some(Direction::Right);}, Err(_) => {
+                        let res = go(self, world, Direction::Up);
+                        
+                        match res {Ok(_) => {direction = Some(Direction::Up);}, Err(_) => {
+                            let _ = go(self, world, Direction::Down);
+                            direction = Some(Direction::Down);
+                        }}
+                    }}}
+            }
+        }
+        if let Some(dir) = direction {
+            let putting = put(self, world, Content::Coin(0), self.get_backpack().get_contents().get(&Content::Coin(0)).unwrap().clone(), dir);
+            match putting {
+                Ok(quantity) => {
+                    if quantity == 0 {
+                        // remove current bank from the free banks and put it in the filled banks
+                        let _ = self.free_banks.remove(&Content::Bank(Range { start: 0, end: 0 }), ChartedCoordinate(cx, cy));
+                        self.filled_banks.save(&Content::Bank(Range { start: 0, end: 0 }), &ChartedCoordinate(cx, cy));
+                    }
+                    self.saved += quantity;
+                    println!("Saved {quantity} coins");
+                },
+                Err(error) => println!("While saving there has been an issue {:?}", error)
+            }
+        } else {
+            self.set_state(State::BankSearching);
+        }
+    }
 }
+
+
+// Problem with RockCollecting that is doing nothing
+// TODO: figure out some way to remove the coins
+// TODO: start the connecting thingy
