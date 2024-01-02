@@ -21,7 +21,7 @@ use robotics_lib::runner::backpack::BackPack;
 use robotics_lib::energy::Energy;
 use robotics_lib::interface::{where_am_i, go, Direction, put, destroy};
 use robotics_lib::world::environmental_conditions::WeatherType;
-use robotics_lib::world::tile::{Content, TileType};
+use robotics_lib::world::tile::{Tile, Content, TileType};
 use utils::clone_direction;
 
 // Standard library
@@ -86,7 +86,7 @@ pub struct SaverBot{
     pub search_tool: SearchTool,
     pub timer: usize,
 
-    
+    pub seen: Vec<((i32, i32), Tile)>
 }
 
 /// Initialized a new SaverBot, and you can ask for a goal
@@ -105,7 +105,7 @@ pub struct SaverBot{
 /// ```
 #[macro_export]
 macro_rules! new_saver_bot {
-    () => {
+    ($x: expr) => {
         SaverBot{
             robot: Robot::new(),
             state: State::CoinCollecting,
@@ -118,10 +118,11 @@ macro_rules! new_saver_bot {
             looking_for: COIN_LOOKING_FOR.to_vec(),
             audio: SaverBot::audio_init(), 
             search_tool: SearchTool::new(),
-            timer: 0
+            timer: 0, 
+            seen: vec![]
         }
     };
-    ($x:expr) => {
+    ($x:expr, $y: expr) => {
         SaverBot{
             robot: Robot::new(),
             state: State::CoinCollecting,
@@ -134,7 +135,8 @@ macro_rules! new_saver_bot {
             looking_for: COIN_LOOKING_FOR.to_vec(),
             audio: SaverBot::audio_init(),
             search_tool: SearchTool::new(),
-            timer: 0
+            timer: 0, 
+            seen: vec![]
         }
     };
 }
@@ -176,6 +178,22 @@ impl Runnable for SaverBot {
             return;
         }  
 
+        // Save the coordinates in the vector
+        let res = where_am_i(self, world);
+        match res {
+            (tiles, (x, y)) => {
+                for i in 0..3 {
+                    for j in 0..3 {
+                        if let Some(tile) = &tiles[i][j] {
+                            if !self.seen.contains(&(((x + i - 1) as i32, (y + j - 1) as i32), tile.clone())) {
+                                self.seen.push((((x + i - 1) as i32, (y + j - 1) as i32), tile.clone()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         match self.get_state() {
             State::CoinCollecting => {
                 self.coin_collect(world);
@@ -190,7 +208,7 @@ impl Runnable for SaverBot {
                 self.save(world);
             },
             State::Enjoying => {
-                self.enjoy();
+                self.enjoy(world);
             },
             State::Trading => {
                 self.trade();
@@ -248,13 +266,13 @@ impl SaverBot {
             goal,
             filled_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(), 
             unconnected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
-            // connected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             free_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             saved: 0,
             looking_for: COIN_LOOKING_FOR.to_vec(),
             audio: SaverBot::audio_init(),
             search_tool: SearchTool::new(),
-            timer: 0
+            timer: 0, 
+            seen: vec![]
         }        
     }
     fn set_state(&mut self, state: State) {
@@ -466,9 +484,30 @@ impl SaverBot {
             self.set_state(State::Connecting)
         }
     }
-    fn enjoy(&mut self) {
+    fn enjoy(&mut self, world: &mut World) {
+        // Goes to the closest bank and rounds around it
         println!("Enjoying");
-        // TODO: Add maybe some useless celebrations and stuff, not meaningful now
+        let (cx, cy) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
+        let dir = self.go_to_closest_open_bank(world);
+        let (x, y) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
+        if cx == x && cy == y {
+            if let Some(direct) = dir {
+                match direct {
+                    Direction::Up => {
+                        let _ = go(self, world, Direction::Left);
+                    },
+                    Direction::Down => {
+                        let _ = go(self, world, Direction::Right);
+                    },
+                    Direction::Left => {
+                        let _ = go(self, world, Direction::Up);
+                    },
+                    Direction::Right => {
+                        let _ = go(self, world, Direction::Down);
+                    }
+                }
+            }
+        }
     }
     fn search_for_bank(&mut self, world: &mut World) {
         println!("Searching for bank");
@@ -665,3 +704,8 @@ impl SaverBot {
         }
     }
 }
+
+// Need to finish
+// Connect things
+// Short path thing
+// Celebration part

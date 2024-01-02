@@ -24,7 +24,7 @@ fn main ()  -> Result<(), OxAgAudioToolError> {
     let background_music = OxAgSoundConfig::new_looped_with_volume("assets/default/music.ogg", 2.0);
     
     // Robot and world initialization
-    let mut bot = new_saver_bot!(1);
+    let mut bot = new_saver_bot!(1, 1000);
     let mut world_gen = WorldgeneratorUnwrap::init(false, None);
     bot.audio.play_audio(&background_music)?;
     let run = Runner::new(Box::new(bot), &mut world_gen);
