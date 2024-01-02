@@ -14,4 +14,5 @@ asfalt_inator = { version = "0.1.0", registry = "kellnr"  }
 charting_tools = { version = "1.0.1", registry = "kellnr"  }
 worldgen_unwrap = { version = "0.1.0", registry = "kellnr"  }
 arrusticini_destroy_zone = { version = "0.1.0", registry = "kellnr"  }
-searchtool_unwrap = { version = "0.1.1", registry = "kellnr"  }
+searchtool_unwrap = { version = "0.1.1", registry = "kellnr" }
+holy_crab_best_path = {version = "0.1.1", registry = "kellnr"}

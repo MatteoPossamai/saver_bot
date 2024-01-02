@@ -10,6 +10,7 @@ use recycle_by_ifrustrati::tool::recycle;
 use arrusticini_destroy_zone::DestroyZone;
 use asfalt_inator::{Asphaltinator, Shape};
 use searchtool_unwrap::SearchTool;
+use holy_crab_best_path::shortest_path; // ?
 
 // Public library
 use robotics_lib::runner::{Robot, Runnable};
@@ -83,7 +84,9 @@ pub struct SaverBot{
     pub looking_for: Vec<Content>,
     pub audio: OxAgAudioTool,
     pub search_tool: SearchTool,
-    pub timer: usize
+    pub timer: usize,
+
+    
 }
 
 /// Initialized a new SaverBot, and you can ask for a goal
@@ -173,23 +176,11 @@ impl Runnable for SaverBot {
             return;
         }  
 
-        // Check if the goal has been reached
-        if let Some(goal) = self.goal {
-            if self.get_coin_saved() >= goal {
-                // remove all coins from the backpack
-                let _ = put(self, world, Content::Coin(0), self.get_backpack().get_contents().get(&Content::Coin(0)).unwrap().clone(), Direction::Up);
-                // remove all garbage from the backpack
-                let _ = put(self, world, Content::Garbage(0), self.get_backpack().get_contents().get(&Content::Garbage(0)).unwrap().clone(), Direction::Up);
-                self.set_state(State::Connecting);
-            }
-        }
-
         match self.get_state() {
             State::CoinCollecting => {
                 self.coin_collect(world);
             }, 
             State::RockCollecting => {
-                println!("Rock collecting noooooow");
                 self.rock_collect(world);
             },
             State::Connecting => {
@@ -272,13 +263,9 @@ impl SaverBot {
     fn get_state(&self) -> &State {
         &self.state
     }
-    fn get_coin_saved(&self) -> usize {
-        self.saved.clone()
-    }
 
     fn reach_position(&mut self, world: &mut World, x: usize, y: usize) -> bool {
-        // Dummy function to move the robot to a certain position
-        // Need to use a best path algorithm or something similar
+        // TODO: Ask how to use the best path thing
         while self.get_coordinate().get_row() < x && self.get_energy().has_enough_energy(50) {
             let _ = go(self, world, Direction::Down);
         }
@@ -305,8 +292,9 @@ impl SaverBot {
         //         self.connected_banks.save(&Content::Bank(Range { start: 0, end: 0 }), &ChartedCoordinate(cx, cy));
         //     }
         // }
-        self.set_state(State::RockCollecting);
-
+        if self.get_backpack().get_contents().get(&Content::Rock(0)) < Some(&3) {
+            self.set_state(State::RockCollecting);
+        }
     }
     fn _connect_banks(&mut self, world: &mut World, x1: usize, y1: usize, x2: usize, _y2: usize) {
         // TODO, figure out something about the unfinished projects
@@ -388,6 +376,10 @@ impl SaverBot {
     }
     fn coin_collect(&mut self, world: &mut World) {
         println!("Coin collecting");
+        if self.goal.is_some() && self.goal.unwrap() <= self.saved + self.get_backpack().get_contents().get(&Content::Coin(0)).unwrap() {
+            self.set_state(State::Saving);
+            return;
+        }
         self.wander_in_seach_of(world, COIN_LOOKING_FOR.to_vec());
         
         let current_number_coins = self.get_backpack().get_contents().get(&Content::Coin(0)).unwrap();
@@ -617,18 +609,7 @@ impl SaverBot {
         let (x, y) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
          
         let mut direction = self.go_to_closest_open_bank(world);
-        let res = where_am_i(self, world);
 
-        for i in 0..3 {
-            for j in 0..3 {
-                println!("{:?}", res.0[i][j]);
-            }
-        }
-
-        if self.get_backpack().get_contents().get(&Content::Coin(0)).unwrap() <= &3 {
-            self.set_state(State::CoinCollecting);
-            return ;
-        } 
         if (cx == x) && (cy == y) {
             let res = go(self, world, Direction::Left);
             match res {
@@ -657,16 +638,30 @@ impl SaverBot {
                     }
                     self.saved += quantity;
                     println!("Saved {quantity} coins");
+                    if let Some(goal) = self.goal {
+                        if self.saved >= goal {
+                            self.set_state(State::RockCollecting);
+                        }else {
+                            self.set_state(State::CoinCollecting);  
+                        }
+                    }else {
+                        self.set_state(State::CoinCollecting);
+                    }
                 },
                 Err(error) => println!("While saving there has been an issue {:?}", error)
             }
         } else {
-            self.set_state(State::BankSearching);
+            // If the goal is met, then go to rock collect, 
+            // otherwise search for banks
+            if let Some(goal) = self.goal {
+                if self.saved >= goal {
+                    self.set_state(State::RockCollecting);
+                }else {
+                    self.set_state(State::BankSearching);
+                }
+            }else {
+                self.set_state(State::BankSearching);
+            }
         }
     }
 }
-
-
-// Problem with RockCollecting that is doing nothing
-// TODO: figure out some way to remove the coins
-// TODO: start the connecting thingy

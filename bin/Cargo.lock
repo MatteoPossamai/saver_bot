@@ -477,6 +477,7 @@ dependencies = [
  "arrusticini_destroy_zone",
  "asfalt_inator",
  "charting_tools",
+ "holy_crab_best_path",
  "oxagaudiotool",
  "recycle_by_ifrustrati",
  "robotics_lib",
@@ -1686,6 +1687,15 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
+name = "holy_crab_best_path"
+version = "0.1.1"
+source = "sparse+https://advancedprogramming.disi.unitn.it/api/v1/crates/"
+checksum = "bec606d19f601de19bcdaee1bfb83bb97629a0fefed53c297bb1939e719dba22"
+dependencies = [
+ "robotics_lib",
+]
 
 [[package]]
 name = "home"
@@ -2925,6 +2935,7 @@ dependencies = [
  "arrusticini_destroy_zone",
  "asfalt_inator",
  "charting_tools",
+ "holy_crab_best_path",
  "oxagaudiotool",
  "rand 0.8.5",
  "recycle_by_ifrustrati",
