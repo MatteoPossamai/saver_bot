@@ -10,7 +10,7 @@ use recycle_by_ifrustrati::tool::recycle;
 use arrusticini_destroy_zone::DestroyZone;
 use asfalt_inator::{Asphaltinator, Shape};
 use searchtool_unwrap::SearchTool;
-use holy_crab_best_path::shortest_path; // ?
+use holy_crab_best_path::BestPath; // use it
 
 // Public library
 use robotics_lib::runner::{Robot, Runnable};
@@ -44,10 +44,10 @@ pub enum State {
     CoinCollecting,
     RockCollecting,
     Trading,
-    Connecting,
     Saving,
     Enjoying,
-    BankSearching
+    BankSearching,
+    Finish
 }
 
 /// The SaverBot struct
@@ -73,9 +73,8 @@ pub struct SaverBot{
 
     // All the banks that the bot knows
     pub filled_banks: ChartedMap<Content>,
-    pub unconnected_banks: ChartedMap<Content>,
     pub free_banks: ChartedMap<Content>,
-    // pub connected_banks: ChartedMap<Content>,
+    pub used_banks: HashMap<(usize, usize), usize>,
 
     // Coins taken so far
     pub saved: usize,
@@ -111,13 +110,12 @@ macro_rules! new_saver_bot {
             state: State::CoinCollecting,
             goal: None,
             filled_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(), 
-            unconnected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
-            // connected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             free_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             saved: 0,
             looking_for: COIN_LOOKING_FOR.to_vec(),
             audio: SaverBot::audio_init(), 
             search_tool: SearchTool::new(),
+            used_banks: HashMap::new(),
             timer: 0, 
             seen: vec![]
         }
@@ -128,13 +126,12 @@ macro_rules! new_saver_bot {
             state: State::CoinCollecting,
             goal: Some($x),
             filled_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(), 
-            unconnected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
-            // connected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             free_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             saved: 0,
             looking_for: COIN_LOOKING_FOR.to_vec(),
             audio: SaverBot::audio_init(),
             search_tool: SearchTool::new(),
+            used_banks: HashMap::new(),
             timer: 0, 
             seen: vec![]
         }
@@ -166,7 +163,6 @@ impl Runnable for SaverBot {
         println!("- ENERGY: {:?}", self.robot.energy.get_energy_level());
         println!("- BACKPACK: {:?}", self.robot.backpack);
         println!("- SAVED: {:?}", self.saved);
-        println!("- KNOWN BANKS: {:?}", self.free_banks.iter());
 
         // Utility functions, to do all the things that can be done 
         // at the same time, regardless of what the robot is currently trying to do
@@ -201,8 +197,8 @@ impl Runnable for SaverBot {
             State::RockCollecting => {
                 self.rock_collect(world);
             },
-            State::Connecting => {
-                self.connect(world);
+            State::Finish => {
+                self.finish(world);
             },
             State::Saving => {
                 self.save(world);
@@ -256,21 +252,22 @@ impl Debug for SaverBot {
     }
 }
 
-/// Utility functions to allow abstact some logic
-/// and implement the state machine
+/// Implementation of the SaverBot
 impl SaverBot {
     pub fn new(goal: Option<usize>) -> Self {
+        // Charting tool used here (an not only here)
+        // Search tool used here (an not only here)
         SaverBot{
             robot: Robot::new(),
             state: State::CoinCollecting,
             goal,
             filled_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(), 
-            unconnected_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             free_banks: ChartingTools::tool::<ChartedMap<Content>>().unwrap(),
             saved: 0,
             looking_for: COIN_LOOKING_FOR.to_vec(),
             audio: SaverBot::audio_init(),
             search_tool: SearchTool::new(),
+            used_banks: HashMap::new(),
             timer: 0, 
             seen: vec![]
         }        
@@ -299,46 +296,14 @@ impl SaverBot {
 
         self.get_coordinate().get_row() == x && self.get_coordinate().get_col() == y
     }
-    fn connect(&mut self, _world: &mut World) {
-        println!("Connecting");
-        
-        // if let Some(connected) = self.connected_banks.get(&Content::Bank(Range { start: 0, end: 0})) {
-        //     if connected.len() > 0 {
-        //         // remove the first from the free banks and put it in the connected banks
-        //         let (cx, cy) = self.closest_bank();
-        //         let _ = self.free_banks.remove(&Content::Bank(Range { start: 0, end: 0 }), ChartedCoordinate(cx, cy));
-        //         self.connected_banks.save(&Content::Bank(Range { start: 0, end: 0 }), &ChartedCoordinate(cx, cy));
-        //     }
-        // }
-        if self.get_backpack().get_contents().get(&Content::Rock(0)) < Some(&3) {
-            self.set_state(State::RockCollecting);
-        }
-    }
-    fn _connect_banks(&mut self, world: &mut World, x1: usize, y1: usize, x2: usize, _y2: usize) {
-        // TODO, figure out something about the unfinished projects
-        if self.reach_position(world, x1, y1) && self.get_energy().has_enough_energy(700) {
-            let mut asphalitinator = Asphaltinator::new();
-            let delta = x2 as isize - x1 as isize;
-            let to_build = Shape::LongLong(delta.abs()as usize, if delta > 0 {Direction::Down} else {Direction::Up});
-            let project = asphalitinator.design_project(to_build);
-            match project {
-                Ok(project) => {
-                    let _ = asphalitinator.asfalting(self, world, project);
-                },
-                Err(error) => println!("While building there has been an issue {:?}", error)
-            }
-        }
-        
-        if self.get_backpack().get_contents().get(&Content::Rock(0)) < Some(&3) {
-            self.set_state(State::RockCollecting);
-        }
-    }
 
     // -------------------
     // DONE CODE LOGIC
     // -------------------
 
     pub fn audio_init() -> OxAgAudioTool {
+        // Audio tool used here
+
         // Configure events
         let mut events = HashMap::new();
         events.insert(Event::Ready, OxAgSoundConfig::new("assets/default/event/event_ready.ogg"));
@@ -378,7 +343,7 @@ impl SaverBot {
         
     }
     fn trade(&mut self) {
-        // Call the recycle interface 
+        // Recycle tool used here
         let trade = recycle(self, 0);
         match trade {
             Ok(coins) => println!("You traded {} coins", coins),
@@ -413,13 +378,9 @@ impl SaverBot {
         }
     }
     fn destroy_area(&mut self, world: &mut World) {
+        // Destroy zone tool used here
         let mut banks_points = vec![];
         if let Some(banks) = self.free_banks.get(&Content::Bank(Range { start: 0, end:0 })) {
-            for bank in banks.iter() {
-                banks_points.push((bank.0.0, bank.0.1));
-            }
-        }
-        if let Some(banks) = self.unconnected_banks.get(&Content::Bank(Range { start: 0, end:0 })) {
             for bank in banks.iter() {
                 banks_points.push((bank.0.0, bank.0.1));
             }
@@ -479,9 +440,8 @@ impl SaverBot {
         let current_number_rock = self.get_backpack().get_contents().get(&Content::Rock(0)).unwrap();
         println!("CURRENT number of rock: {:?}", current_number_rock);
         // Change state if enough rock
-        if current_number_rock >= &15 {
-            println!("Changing state to connecting");
-            self.set_state(State::Connecting)
+        if current_number_rock >= &8 {
+            self.set_state(State::Finish)
         }
     }
     fn enjoy(&mut self, world: &mut World) {
@@ -671,12 +631,20 @@ impl SaverBot {
             match putting {
                 Ok(quantity) => {
                     if quantity == 0 {
-                        // remove current bank from the free banks and put it in the filled banks
                         let _ = self.free_banks.remove(&Content::Bank(Range { start: 0, end: 0 }), ChartedCoordinate(cx, cy));
                         self.filled_banks.save(&Content::Bank(Range { start: 0, end: 0 }), &ChartedCoordinate(cx, cy));
                     }
                     self.saved += quantity;
                     println!("Saved {quantity} coins");
+
+                    // Update the seen banks in the hashmap
+                    let (x, y) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
+                    let mut value = 0;
+                    if let Some(coins) = self.used_banks.get(&(x, y)) {
+                        value = coins.clone();
+                    }
+                    self.used_banks.insert((x, y), value + quantity);
+
                     if let Some(goal) = self.goal {
                         if self.saved >= goal {
                             self.set_state(State::RockCollecting);
@@ -690,8 +658,6 @@ impl SaverBot {
                 Err(error) => println!("While saving there has been an issue {:?}", error)
             }
         } else {
-            // If the goal is met, then go to rock collect, 
-            // otherwise search for banks
             if let Some(goal) = self.goal {
                 if self.saved >= goal {
                     self.set_state(State::RockCollecting);
@@ -703,9 +669,93 @@ impl SaverBot {
             }
         }
     }
+    fn asphalt_around(&mut self, world: &mut World) {
+        // Asphaltinator tool used here
+        let mut asphaltinator = Asphaltinator::new();
+        let shape1 = Shape::Rectangle(3, 1);
+        let shape2 = Shape::Rectangle(1, 2);
+        let shape3 = Shape::Rectangle(2, 1);
+        let shape4 = Shape::Rectangle(1, 2);
+
+        let p1 = asphaltinator.design_project(shape1);
+        let p2 = asphaltinator.design_project(shape2);
+        let p3 = asphaltinator.design_project(shape3);
+        let p4 = asphaltinator.design_project(shape4);
+        let projects = vec![p1, p2, p3, p4];
+        for project in projects {
+            println!("{:?}", where_am_i(self, world));
+            match project {
+                Ok(project) => {
+                    let _ = asphaltinator.asfalting(self, world, project);
+                },
+                Err(error) => println!("While asphaltinating there has been an issue {:?}", error)
+            }
+        }   
+    }
+    fn go_to_closest_used_bank(&mut self, world: &mut World) -> Option<Direction> {
+        let mut highest = 0;
+        let mut best = (0, 0);
+        for ((x, y), money) in self.used_banks.iter() {
+            if *money > highest {
+                highest = *money;
+                best = (*x, *y);
+            }
+        }
+
+        self.reach_position(world, best.0, best.1);
+        let (neighborhoods, (rx, ry)) = where_am_i(self, &world);
+        for x in 0..3 {
+            for y in 0..3 {
+                let tile = &neighborhoods[x][y];
+                if let Some(tile) = tile {
+                    match &tile.content.to_default() {
+                        Content::Bank(_) => {
+                            let dir = if rx + 1 == x {Direction::Up} else if rx - 1 == x {Direction::Down} else if ry + 1 == y {Direction::Left} else {Direction::Right};
+                            return Some(dir);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        None
+    }
+    fn finish(&mut self, world: &mut World) {
+        // Go to the closest bank
+        let direction = self.go_to_closest_used_bank(world);
+        println!("Going to the closest bank");
+        println!("Direction: {:?}", direction); 
+
+        if direction.is_some() && self.get_energy().has_enough_energy(500) {
+           // Reach the bottom left corner of the bank
+           match direction.unwrap() {
+               Direction::Up => {
+                   let _ = go(self, world, Direction::Left);
+               },
+               Direction::Down => {
+                   let _ = go(self, world, Direction::Left);
+                   let _ = go(self, world, Direction::Down);
+                   let _ = go(self, world, Direction::Down);
+                   
+               },
+               Direction::Left => {
+                   let _ = go(self, world, Direction::Down);
+               },
+               Direction::Right => {
+                   let _ = go(self, world, Direction::Down);
+                   let _ = go(self, world, Direction::Left);
+                   let _ = go(self, world, Direction::Left);
+               }
+           } 
+           // Surrond the bank with asphalt
+           self.asphalt_around(world);
+
+           // Go enjoy the thing
+           self.set_state(State::Enjoying);
+        }
+    }
 }
 
 // Need to finish
-// Connect things
+// Improve search heuristic
 // Short path thing
-// Celebration part

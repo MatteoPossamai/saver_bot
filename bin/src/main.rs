@@ -18,6 +18,7 @@ use robotics_lib::runner::{Robot, Runner};
 // Standard library
 use std::thread::sleep;
 use std::time::Duration;
+use std::collections::HashMap;
 
 fn main ()  -> Result<(), OxAgAudioToolError> {
     println!("Loading...");
