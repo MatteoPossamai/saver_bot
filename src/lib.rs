@@ -492,7 +492,6 @@ impl SaverBot {
         let (cx, cy) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
         let dir = self.go_to_closest_open_bank(world);
         let (x, y) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
-        println!("SURROUNDING {:?}", where_am_i(self, world));
         if cx == x && cy == y {
             if let Some(direct) = dir {
                 match direct {
@@ -764,8 +763,6 @@ impl SaverBot {
     fn finish(&mut self, world: &mut World) {
         // Go to the closest bank
         let direction = self.go_to_closest_used_bank(world);
-        println!("Going to the closest bank");
-        println!("Direction: {:?}", direction); 
 
         if direction.is_some() && self.get_energy().has_enough_energy(500) {
            // Reach the bottom left corner of the bank
@@ -796,5 +793,3 @@ impl SaverBot {
         }
     }
 }
-
-// Short path thing (asked for help)
