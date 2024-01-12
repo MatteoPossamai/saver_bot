@@ -10,7 +10,7 @@ use recycle_by_ifrustrati::tool::recycle;
 use arrusticini_destroy_zone::DestroyZone;
 use asfalt_inator::{Asphaltinator, Shape};
 use searchtool_unwrap::SearchTool;
-use holy_crab_best_path::BestPath; // use it
+use holy_crab_best_path::BestPath;
 
 // Public library
 use robotics_lib::runner::{Robot, Runnable};
@@ -280,7 +280,7 @@ impl SaverBot {
     }
 
     fn reach_position(&mut self, world: &mut World, x: usize, y: usize) -> bool {
-        // TODO: Ask how to use the best path thing
+        println!("Reach position");
         while self.get_coordinate().get_row() < x && self.get_energy().has_enough_energy(50) {
             let _ = go(self, world, Direction::Down);
         }
@@ -293,6 +293,49 @@ impl SaverBot {
         while self.get_coordinate().get_col() > y && self.get_energy().has_enough_energy(50){
             let _ = go(self, world, Direction::Left);
         }
+
+        // Check if the current position is the one we are looking for
+        // is in seen
+        // let mut seen = false;
+        // for ((x, y), _) in self.seen.iter() {
+        //     if *x == *x as i32 && *y == *y as i32 {
+        //         seen = true;
+        //     }
+        // }
+
+        // // TODO: remove to make it better
+        // seen = false;
+
+        // let (x_curr, y_curr) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
+        // println!("I need to go from {} {} to {} {}", x_curr, y_curr, x, y);
+        // if seen {
+        //     let shortest_paths = BestPath::shortest_path(self, world, &self.seen.clone(), vec![(x as i32, y as i32)], (x_curr as i32, y_curr as i32), false);
+        //     println!("Shortest paths: {:?}", shortest_paths);
+        //     println!("{:?}", self.seen);
+        //     // let (x, y) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
+        //     for path in shortest_paths {
+        //         for direction in path {
+        //             println!("{:?}", direction);
+        //             // let _ = go(self, world, direction);
+        //         }
+        //     }
+        // }else {
+        //     while self.get_coordinate().get_row() < x && self.get_energy().has_enough_energy(50) {
+        //         let _ = go(self, world, Direction::Down);
+        //     }
+        //     while self.get_coordinate().get_row() > x && self.get_energy().has_enough_energy(50) {
+        //         let _ = go(self, world, Direction::Up);
+        //     }
+        //     while self.get_coordinate().get_col() < y && self.get_energy().has_enough_energy(50){
+        //         let _ = go(self, world,  Direction::Right);
+        //     }
+        //     while self.get_coordinate().get_col() > y && self.get_energy().has_enough_energy(50){
+        //         let _ = go(self, world, Direction::Left);
+        //     }
+        // }
+
+        // let s: Option<i32> = None;
+        // s.unwrap();
 
         self.get_coordinate().get_row() == x && self.get_coordinate().get_col() == y
     }
@@ -368,12 +411,11 @@ impl SaverBot {
         let current_number_coins = self.get_backpack().get_contents().get(&Content::Coin(0)).unwrap();
         let current_number_garbage = self.get_backpack().get_contents().get(&Content::Garbage(0)).unwrap();
         let current_number_rock = self.get_backpack().get_contents().get(&Content::Rock(0)).unwrap();
-        let current_number_trees = self.get_backpack().get_contents().get(&Content::Tree(0)).unwrap();
 
         // Change state if too many coin to save or if there are enough to trade
         if current_number_coins >= &12 {
             self.set_state(State::Saving)
-        }else if (current_number_garbage >= &5) || (current_number_rock >= &3) || (current_number_trees >= &1) {
+        }else if (current_number_garbage >= &5) || (current_number_rock >= &3) {
             self.set_state(State::Trading)
         }
     }
@@ -450,6 +492,7 @@ impl SaverBot {
         let (cx, cy) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
         let dir = self.go_to_closest_open_bank(world);
         let (x, y) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
+        println!("SURROUNDING {:?}", where_am_i(self, world));
         if cx == x && cy == y {
             if let Some(direct) = dir {
                 match direct {
@@ -683,7 +726,6 @@ impl SaverBot {
         let p4 = asphaltinator.design_project(shape4);
         let projects = vec![p1, p2, p3, p4];
         for project in projects {
-            println!("{:?}", where_am_i(self, world));
             match project {
                 Ok(project) => {
                     let _ = asphaltinator.asfalting(self, world, project);
@@ -701,7 +743,6 @@ impl SaverBot {
                 best = (*x, *y);
             }
         }
-
         self.reach_position(world, best.0, best.1);
         let (neighborhoods, (rx, ry)) = where_am_i(self, &world);
         for x in 0..3 {
@@ -756,6 +797,4 @@ impl SaverBot {
     }
 }
 
-// Need to finish
-// Improve search heuristic
-// Short path thing
+// Short path thing (asked for help)
