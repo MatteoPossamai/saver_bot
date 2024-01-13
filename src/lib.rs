@@ -9,7 +9,7 @@ use oxagaudiotool::sound_config::OxAgSoundConfig;
 use recycle_by_ifrustrati::tool::recycle;
 use arrusticini_destroy_zone::DestroyZone;
 use asfalt_inator::{Asphaltinator, Shape};
-use searchtool_unwrap::SearchTool;
+use searchtool_unwrap::{SearchTool, SearchDirection};
 use holy_crab_best_path::BestPath;
 
 // Public library
@@ -334,10 +334,16 @@ impl SaverBot {
         //     }
         // }
 
-        // let s: Option<i32> = None;
-        // s.unwrap();
-
         self.get_coordinate().get_row() == x && self.get_coordinate().get_col() == y
+    }
+
+    fn check_if_seen(&mut self, x: usize, y: usize) -> bool {
+        for ((x_seen, y_seen), _) in self.seen.iter() {
+            if x == *x_seen as usize && y == *y_seen as usize {
+                return true;
+            }
+        }
+        false
     }
 
     // -------------------
@@ -583,8 +589,47 @@ impl SaverBot {
         let mut st = SearchTool::new();
         
         self.timer += 1;
+        let mut where_can_i_go = vec![];
+        let (x, y) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
+
+        for direction in DIRECTIONS.iter() {
+            match direction {
+                SearchDirection::BottomLeft => {
+                    let (cx, cy) = (x + 2, y - 2);
+                    if !self.check_if_seen(cx, cy) {
+                        where_can_i_go.push(SearchDirection::BottomLeft);
+                    }
+                },
+                SearchDirection::BottomRight => {
+                    let (cx, cy) = (x + 2, y + 2);
+                    if !self.check_if_seen(cx, cy) {
+                        where_can_i_go.push(SearchDirection::BottomRight);
+                    }
+                },
+                SearchDirection::TopLeft => {
+                    let (cx, cy) = (x - 2, y - 2);
+                    if !self.check_if_seen(cx, cy) {
+                        where_can_i_go.push(SearchDirection::TopLeft);
+                    }
+                },
+                SearchDirection::TopRight => {
+                    let (cx, cy) = (x - 2, y + 2);
+                    if !self.check_if_seen(cx, cy) {
+                        where_can_i_go.push(SearchDirection::TopRight);
+                    }
+                }
+            }
+        }
+
+        if where_can_i_go.len() == 0 {
+            where_can_i_go.push(SearchDirection::BottomLeft);
+            where_can_i_go.push(SearchDirection::BottomRight);
+            where_can_i_go.push(SearchDirection::TopLeft);
+            where_can_i_go.push(SearchDirection::TopRight);
+        }
+
         let res = st.look_for_this_content(self, world, contents.clone(),
-                2 , clone_direction(&DIRECTIONS[rand::thread_rng().gen_range(0..4)]));
+                2 , clone_direction(&where_can_i_go[rand::thread_rng().gen_range(0..where_can_i_go.len())]));
         match res {
             Ok(_) => {
                 // Save the banks into the map
