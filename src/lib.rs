@@ -10,7 +10,6 @@ use recycle_by_ifrustrati::tool::recycle;
 use arrusticini_destroy_zone::DestroyZone;
 use asfalt_inator::{Asphaltinator, Shape};
 use searchtool_unwrap::{SearchTool, SearchDirection};
-use holy_crab_best_path::BestPath;
 
 // Public library
 use robotics_lib::runner::{Robot, Runnable};
@@ -204,7 +203,7 @@ impl Runnable for SaverBot {
                 self.save(world);
             },
             State::Enjoying => {
-                self.enjoy(world);
+                self.enjoy();
             },
             State::Trading => {
                 self.trade();
@@ -214,7 +213,6 @@ impl Runnable for SaverBot {
             }
         }
     }
-
     fn handle_event(&mut self, event: Event) {
         // let _ = self.audio.play_audio_based_on_event(&event); TODO: uncomment this for audio
         println!("{:?}", event);
@@ -293,47 +291,6 @@ impl SaverBot {
         while self.get_coordinate().get_col() > y && self.get_energy().has_enough_energy(50){
             let _ = go(self, world, Direction::Left);
         }
-
-        // Check if the current position is the one we are looking for
-        // is in seen
-        // let mut seen = false;
-        // for ((x, y), _) in self.seen.iter() {
-        //     if *x == *x as i32 && *y == *y as i32 {
-        //         seen = true;
-        //     }
-        // }
-
-        // // TODO: remove to make it better
-        // seen = false;
-
-        // let (x_curr, y_curr) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
-        // println!("I need to go from {} {} to {} {}", x_curr, y_curr, x, y);
-        // if seen {
-        //     let shortest_paths = BestPath::shortest_path(self, world, &self.seen.clone(), vec![(x as i32, y as i32)], (x_curr as i32, y_curr as i32), false);
-        //     println!("Shortest paths: {:?}", shortest_paths);
-        //     println!("{:?}", self.seen);
-        //     // let (x, y) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
-        //     for path in shortest_paths {
-        //         for direction in path {
-        //             println!("{:?}", direction);
-        //             // let _ = go(self, world, direction);
-        //         }
-        //     }
-        // }else {
-        //     while self.get_coordinate().get_row() < x && self.get_energy().has_enough_energy(50) {
-        //         let _ = go(self, world, Direction::Down);
-        //     }
-        //     while self.get_coordinate().get_row() > x && self.get_energy().has_enough_energy(50) {
-        //         let _ = go(self, world, Direction::Up);
-        //     }
-        //     while self.get_coordinate().get_col() < y && self.get_energy().has_enough_energy(50){
-        //         let _ = go(self, world,  Direction::Right);
-        //     }
-        //     while self.get_coordinate().get_col() > y && self.get_energy().has_enough_energy(50){
-        //         let _ = go(self, world, Direction::Left);
-        //     }
-        // }
-
         self.get_coordinate().get_row() == x && self.get_coordinate().get_col() == y
     }
 
@@ -345,11 +302,6 @@ impl SaverBot {
         }
         false
     }
-
-    // -------------------
-    // DONE CODE LOGIC
-    // -------------------
-
     pub fn audio_init() -> OxAgAudioTool {
         // Audio tool used here
 
@@ -492,30 +444,9 @@ impl SaverBot {
             self.set_state(State::Finish)
         }
     }
-    fn enjoy(&mut self, world: &mut World) {
-        // Goes to the closest bank and rounds around it
+    fn enjoy(&mut self) {
+        // Does nothing
         println!("Enjoying");
-        let (cx, cy) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
-        let dir = self.go_to_closest_open_bank(world);
-        let (x, y) = (self.get_coordinate().get_row(), self.get_coordinate().get_col());
-        if cx == x && cy == y {
-            if let Some(direct) = dir {
-                match direct {
-                    Direction::Up => {
-                        let _ = go(self, world, Direction::Left);
-                    },
-                    Direction::Down => {
-                        let _ = go(self, world, Direction::Right);
-                    },
-                    Direction::Left => {
-                        let _ = go(self, world, Direction::Up);
-                    },
-                    Direction::Right => {
-                        let _ = go(self, world, Direction::Down);
-                    }
-                }
-            }
-        }
     }
     fn search_for_bank(&mut self, world: &mut World) {
         println!("Searching for bank");
