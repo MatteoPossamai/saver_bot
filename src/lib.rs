@@ -214,7 +214,7 @@ impl Runnable for SaverBot {
         }
     }
     fn handle_event(&mut self, event: Event) {
-        let _ = self.audio.play_audio_based_on_event(&event); TODO: uncomment this for audio
+        let _ = self.audio.play_audio_based_on_event(&event);
         println!("{:?}", event);
     }
     fn get_energy(&self) -> &Energy {
